@@ -12,6 +12,8 @@ html,body{margin:0;height:100%;background:#2B2118;font-family:'Jua',system-ui,sa
 #app{position:relative;max-width:520px;height:100%;margin:0 auto;background:var(--bg);overflow:hidden}
 .scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0) + 12px) 14px calc(env(safe-area-inset-bottom,0) + 12px);overflow:auto;touch-action:pan-y}
 .scr[hidden]{display:none}
+.scr>*{flex-shrink:0}
+#board .btabs{position:sticky;top:-12px;z-index:3;background:var(--bg);padding-top:8px}
 button{font-family:inherit;color:var(--ink);cursor:pointer}
 .btn{font-size:20px;padding:11px 24px;border-radius:999px;border:2.5px solid var(--ink);background:var(--gold2);box-shadow:0 4px 0 var(--ink)}
 .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
@@ -148,7 +150,7 @@ window.CLOUD=(function(){
     async plays(game){try{const {f,db}=await to(ready());const s=await to(f.getDoc(f.doc(db,'stats',game)));return s.exists()?s.data().plays:0}catch(e){return null}},
     async save(board,name,score,id){try{const {f,db}=await to(ready());const data={name:String(name).slice(0,8),score:Math.max(0,Math.min(300000,Math.round(score))),at:f.serverTimestamp()};
       if(id)await to(f.setDoc(f.doc(db,'boards',board,'rows',id),data));else await to(f.addDoc(f.collection(db,'boards',board,'rows'),data));return true}catch(e){return e&&e.code==='permission-denied'&&id?true:false}},
-    async top(board){try{const {f,db}=await to(ready());const s=await to(f.getDocs(f.query(f.collection(db,'boards',board,'rows'),f.orderBy('score','desc'),f.limit(400))));
+    async top(board){try{const {f,db}=await to(ready());const s=await to(f.getDocs(f.query(f.collection(db,'boards',board,'rows'),f.orderBy('score','desc'),f.limit(1000))));
       const m=new Map();s.forEach(d=>{const x=d.data();const r=m.get(x.name);if(!r)m.set(x.name,{name:x.name,best:x.score,n:1});else{r.n++;if(x.score>r.best)r.best=x.score}});
       return[...m.values()].sort((a,b)=>b.best-a.best)}catch(e){return null}}
   };
@@ -486,7 +488,7 @@ $('btabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b
 let boardSeq=0;
 async function renderBoard(){const my=++boardSeq;$('tbl').innerHTML='<tr><td style="text-align:center;padding:18px">순위표 불러오는 중</td></tr>';
   let a=await CLOUD.top('eumun_'+tab);if(my!==boardSeq)return;
-  if(a){$('boardNote').innerHTML='모든 학생의 기록이 모여요. 이름마다 최고 점수로 순위가 매겨져요.<br>게임별 순위에는 도전과 연습 기록이 다 들어가요.';a=a.slice(0,50).map(r=>({name:r.name,best:{[tab]:r.best},n:{[tab]:r.n}}))}
+  if(a){$('boardNote').innerHTML='모든 학생의 기록이 모여요. 이름마다 최고 점수로 순위가 매겨져요.<br>게임별 순위에는 도전과 연습 기록이 다 들어가요.';a=a.slice(0,200).map(r=>({name:r.name,best:{[tab]:r.best},n:{[tab]:r.n}}))}
   else{$('boardNote').textContent='인터넷 연결이 안 돼서 이 기기 기록만 보여요.';a=getB().filter(r=>tab in r.best);a.sort((x,y)=>y.best[tab]-x.best[tab]);a=a.slice(0,50)}
   $('tbl').innerHTML=a.length?a.map((r,i)=>`<tr class="${r.name===lastKey?'me':''}"><td class="r">${i+1}</td><td>${r.name||'이름 없음'}<small>${r.n[tab]}번 도전</small></td><td class="s">${r.best[tab].toLocaleString()}</td></tr>`).join('')
    :`<tr><td style="text-align:center;padding:18px">아직 기록이 없어요.</td></tr>`}
