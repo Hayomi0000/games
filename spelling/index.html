@@ -109,6 +109,7 @@ tr.me td{background:#FFF0B8}
 <section class="scr" id="home">
   <h1 class="title">맞춤법 대작전</h1>
   <p class="sub">명덕여고 1학년 · 공통국어2 한글 맞춤법 제1~57항</p>
+  <p class="sub" id="playCount" style="color:#B8401F;opacity:1"></p>
   <div class="lab2">누가 할 차례?</div>
   <div class="who" id="who"></div>
   <div class="lab2">범위</div>
@@ -150,13 +151,30 @@ tr.me td{background:#FFF0B8}
   <div class="btabs" id="btabs"></div>
   <div class="podium" id="podium"></div>
   <div class="card" style="padding:6px 10px"><table id="tbl"></table></div>
-  <p class="note">이 기기에서 한 기록이에요. 사람마다 최고 점수로 순위를 매겨요.</p>
-  <div class="row2"><button class="btn" id="homeBtn">처음으로</button><button class="btn s w" id="clrBtn">기록 전부 지우기</button></div>
+  <p class="note" id="boardNote">모두의 기록이 모여요. 사람마다 최고 점수로 순위를 매겨요.</p>
+  <div class="row2"><button class="btn" id="homeBtn">처음으로</button><button class="btn s w" id="clrBtn" hidden>기록 전부 지우기</button></div>
 </section>
 
 <div class="ov" id="ov" hidden><div class="card" id="ovCard"></div></div>
 </div>
 
+<script>
+/* 전체 순위표·플레이 횟수 (Firebase) */
+window.CLOUD=(function(){
+  const cfg={apiKey:"AIzaSyATP1jt4mQRhaC_5THouQ4iI4xM7Ff6Kck",authDomain:"hayomi-games.firebaseapp.com",projectId:"hayomi-games",storageBucket:"hayomi-games.firebasestorage.app",messagingSenderId:"388207975324",appId:"1:388207975324:web:56acc4e7c5c85667ab8659"};
+  const V='https://www.gstatic.com/firebasejs/10.12.2/';let p=null;
+  const ready=()=>p||(p=Promise.all([import(V+'firebase-app.js'),import(V+'firebase-firestore.js')]).then(([a,f])=>({f,db:f.getFirestore(a.initializeApp(cfg))})));
+  const to=(pr,ms=8000)=>Promise.race([pr,new Promise((_,j)=>setTimeout(()=>j('timeout'),ms))]);
+  return{
+    async play(game){try{const {f,db}=await to(ready());await to(f.setDoc(f.doc(db,'stats',game),{plays:f.increment(1)},{merge:true}));return true}catch(e){return false}},
+    async plays(game){try{const {f,db}=await to(ready());const s=await to(f.getDoc(f.doc(db,'stats',game)));return s.exists()?s.data().plays:0}catch(e){return null}},
+    async save(board,name,score){try{const {f,db}=await to(ready());await to(f.addDoc(f.collection(db,'boards',board,'rows'),{name:String(name).slice(0,8),score:Math.max(0,Math.min(300000,Math.round(score))),at:f.serverTimestamp()}));return true}catch(e){return false}},
+    async top(board){try{const {f,db}=await to(ready());const s=await to(f.getDocs(f.query(f.collection(db,'boards',board,'rows'),f.orderBy('score','desc'),f.limit(400))));
+      const m=new Map();s.forEach(d=>{const x=d.data();const r=m.get(x.name);if(!r)m.set(x.name,{name:x.name,best:x.score,n:1});else{r.n++;if(x.score>r.best)r.best=x.score}});
+      return[...m.values()].sort((a,b)=>b.best-a.best)}catch(e){return null}}
+  };
+})();
+</script>
 <script>
 /* ================= 학생 ================= */
 const KIDS=[['온유','#8EC5F0'],['나율','#C3A6EE'],['가윤','#93D9AE'],['은지','#F6C96A']];
@@ -779,7 +797,7 @@ GAMES.tug={name:'규정 줄다리기',desc:'토끼가 줄을 계속 당겨요. �
 /* ================= 진행 ================= */
 let loopId=0,timers=[];
 function clearAll(){cancelAnimationFrame(loopId);timers.forEach(t=>{clearInterval(t);clearTimeout(t)});timers=[];$('extra').innerHTML='';$('area').className='area';document.querySelector('.toast')?.remove()}
-function startRun(list){R={list,idx:0,score:0,combo:0,right:0,wrongN:0,wrong:[],missed:[],per:[],arts:new Set(),practice:list.length===1};show('play');runGame()}
+function startRun(list){CLOUD.play('spelling').then(ok=>ok&&showPlays());R={list,idx:0,score:0,combo:0,right:0,wrongN:0,wrong:[],missed:[],per:[],arts:new Set(),practice:list.length===1};show('play');runGame()}
 function runGame(){
   clearAll();const key=R.list[R.idx],g=GAMES[key];R.gScore=0;R.hearts=g.hearts?3:null;R.endNow=false;hud();
   $('meLab').innerHTML=`<img src="${AVA[ME]}" style="height:20px;vertical-align:middle"> ${ME}`;
@@ -830,12 +848,17 @@ function renderDex(){
 const LS='md-spell-board2';
 const getB=()=>{try{return JSON.parse(localStorage.getItem(LS)||'[]')}catch(_){return[]}};
 const putB=a=>{try{localStorage.setItem(LS,JSON.stringify(a))}catch(_){}};
-function saveRec(g,score){const a=getB();let r=a.find(x=>x.name===ME);if(!r){r={name:ME,best:{},n:{}};a.push(r)}r.n[g]=(r.n[g]||0)+1;if(!(g in r.best)||score>r.best[g])r.best[g]=score;putB(a)}
+function saveRec(g,score){const a=getB();let r=a.find(x=>x.name===ME);if(!r){r={name:ME,best:{},n:{}};a.push(r)}r.n[g]=(r.n[g]||0)+1;if(!(g in r.best)||score>r.best[g])r.best[g]=score;putB(a);CLOUD.save('spelling_'+g,ME,score)}
 let tab='total';const BTABS=[['total','종합'],['slice','오타 베기'],['tug','규정 줄다리기'],['dex','도감 별']];
 $('btabs').innerHTML=BTABS.map(([k,n])=>`<button data-t="${k}" class="${k==='total'?'on':''}">${n}</button>`).join('');
 $('btabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.t;[...$('btabs').children].forEach(x=>x.classList.toggle('on',x===b));renderBoard()};
-function renderBoard(){
+let boardSeq=0;
+async function renderBoard(){
+  const my=++boardSeq;let cloud=null;
+  if(tab!=='dex'){$('tbl').innerHTML='<tr><td style="text-align:center;padding:18px">순위표 불러오는 중</td></tr>';$('podium').innerHTML='';cloud=await CLOUD.top('spelling_'+tab);if(my!==boardSeq)return}
+  $('boardNote').textContent=tab==='dex'?'도감 별은 각자 게임한 기기에 저장돼요.':cloud?'모두의 기록이 모여요. 사람마다 최고 점수로 순위를 매겨요.':'인터넷 연결이 안 돼서 이 기기 기록만 보여요.';
   const a=getB();const rows=KIDS.map(([n])=>{if(tab==='dex'){const m=getM(n);const s=ARTS.reduce((t,x)=>t+stars(m[x[0]]||0),0);return{name:n,s:s||null,n:0,unit:'개'}}
+    if(cloud){const c=cloud.find(x=>x.name===n);return{name:n,s:c?c.best:null,n:c?c.n:0}}
     const r=a.find(x=>x.name===n);return{name:n,s:r&&tab in r.best?r.best[tab]:null,n:r?.n?.[tab]||0}});
   rows.sort((x,y)=>(y.s??-1)-(x.s??-1));
   const top=rows.filter(r=>r.s!=null).slice(0,3),order=[1,0,2],hgt=[64,90,50];
@@ -861,6 +884,8 @@ function need(){if(!ME){shake($('who'));return true}return false}
 $('goBtn').onclick=()=>{if(need())return;startRun(['slice','tug'])};
 $('glist').onclick=e=>{const b=e.target.closest('button');if(!b||need())return;startRun([b.dataset.k])};
 $('againBtn').onclick=()=>startRun(R.list);
+async function showPlays(){const n=await CLOUD.plays('spelling');if(n!=null)$('playCount').textContent=`지금까지 ${n.toLocaleString()}번 플레이`}
+showPlays();
 const toBoard=()=>{show('board');renderBoard()};$('rankBtn').onclick=toBoard;$('rank2Btn').onclick=toBoard;
 const toDex=()=>{show('dex');renderDex();$('dex').scrollTop=0};$('dexBtn').onclick=toDex;$('dex2Btn').onclick=toDex;
 $('homeBtn').onclick=()=>show('home');$('home2Btn').onclick=()=>show('home');$('dexHome').onclick=()=>show('home');
